@@ -89,7 +89,7 @@ local activeFaces = {}
 ---Creates a new face
 ---@param eyes ModelPart|ModelPart[]?
 ---@param blinkPlate ModelPart|ModelPart[]?
----@param faceplates table<string, chyzman.faceplate>
+---@param faceplates table<string, chyzman.faceplate>?
 ---@param config chyzman.face.config?
 ---@return chyzman.face
 function chyzlib.face(eyes, blinkPlate, faceplates, config)
@@ -112,7 +112,7 @@ function chyzlib.face(eyes, blinkPlate, faceplates, config)
         obj:setConfig(config)
     end
 
-    obj.currentPlate = next(faceplates)
+    if next(obj.plates) then obj.currentPlate = next(faceplates) end
     obj.blinking = false;
     obj.blinkTimer = obj:_chooseBlink()
 
@@ -188,15 +188,14 @@ function face:_chooseBlink()
 end
 
 function face:_updateVisibility()
-    local target;
-    for name, plate in pairs(self.plates) do
-        if name ~= self.currentPlate then
-            plate:setVisible(false)
-        else
-            target = plate
+    if (self.currentPlate) then
+        for name, plate in pairs(self.plates) do
+            if name ~= self.currentPlate then
+                plate:setVisible(false)
+            end
         end
     end
-    target:setVisible(true)
+    self.plates[self.currentPlate]:setVisible(true)
     self:_updateEyeVisibility()
 end
 
@@ -225,5 +224,7 @@ function events.tick()
         face:_updateVisibility()
     end
 end
+
+--- Ears -------------------------------------------------------------------------------------
 
 return chyzlib
