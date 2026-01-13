@@ -70,7 +70,8 @@ end
 
 ---@class chyzman.face
 ---@field plates table<string, chyzman.faceplate>
----@field eyes ModelPart|ModelPart[]
+---@field eyes ModelPart[]
+---@field blinkPlate ModelPart[]
 ---@field config chyzman.face.config
 local face = {}
 face.__index = face
@@ -86,21 +87,23 @@ local activeFaces = {}
 ---@field onBlinkEnd fun(self: chyzman.face)? -- called when blink ends
 
 ---Creates a new face
----@param eyes ModelPart|ModelPart[]
+---@param eyes ModelPart|ModelPart[]?
+---@param blinkPlate ModelPart|ModelPart[]?
 ---@param faceplates table<string, chyzman.faceplate>
 ---@param config chyzman.face.config?
 ---@return chyzman.face
-function chyzlib.face(eyes, faceplates, config)
+function chyzlib.face(eyes, blinkPlate, faceplates, config)
     local obj = setmetatable({}, face)
-    obj.eyes = type(eyes) == "table" and eyes or { eyes }
+    obj.eyes = eyes and (type(eyes) == "table" and eyes or { eyes }) or {}
+    obj.blinkPlate = blinkPlate and (type(blinkPlate) == "table" and blinkPlate or { blinkPlate }) or {}
     obj.plates = faceplates or {}
 
     ---@class (partial) chyzman.face.config
     obj.config = { -- default config
-        blinkInterval = 6,
+        blinkInterval = 2,
         blinkIntervalVariation = 2,
-        blinkDuration = 1.5,
-        blinkDurationVariation = 0,
+        blinkDuration = 0.25,
+        blinkDurationVariation = 0.1,
         onBlinkStart = nil,
         onBlinkEnd = nil
     }
@@ -110,9 +113,8 @@ function chyzlib.face(eyes, faceplates, config)
     end
 
     obj.currentPlate = next(faceplates)
-    obj.blinkTimer = 0
     obj.blinking = false;
-    obj.nextBlink = obj:_chooseBlink()
+    obj.blinkTimer = obj:_chooseBlink()
 
     obj:_updateVisibility()
     activeFaces[obj] = obj
@@ -180,8 +182,8 @@ end
 ---Chooses next blink timing
 ---@return number
 function face:_chooseBlink()
-    local base = self.blinking and self.config.blinkInterval or self.config.blinkDuration
-    local variation = self.blinking and self.config.blinkIntervalVariation or self.config.blinkDurationVariation
+    local base = self.blinking and self.config.blinkDuration or self.config.blinkInterval
+    local variation = self.blinking and self.config.blinkDurationVariation or self.config.blinkIntervalVariation
     return math.floor(chyzlib.applyVariation(base, variation) * TICK_LENGTH)
 end
 
@@ -199,12 +201,11 @@ function face:_updateVisibility()
 end
 
 function face:_updateEyeVisibility()
-   local currentPlate = self.plates[self.currentPlate]
-   local eyeVisible = currentPlate.config.forceBlink or not self.blinking
-   
-   for _, eye in ipairs(self.eyes) do
-      eye:setVisible(eyeVisible)
-   end
+    local currentPlate = self.plates[self.currentPlate]
+    local eyeVisible = not (currentPlate.config.forceBlink or self.blinking)
+
+    for _, eye in ipairs(self.eyes) do eye:setVisible(eyeVisible) end
+    for _, blink in ipairs(self.blinkPlate) do blink:setVisible(not eyeVisible) end
 end
 
 function events.tick()
@@ -215,13 +216,14 @@ function events.tick()
         if face.blinkTimer <= 0 then
             face.blinking = not face.blinking
             face.blinkTimer = face:_chooseBlink()
-            face:_updateEyeVisibility()
             if face.blinking and face.config.onBlinkStart then
                 face.config.onBlinkStart(face)
             elseif not face.blinking and face.config.onBlinkEnd then
                 face.config.onBlinkEnd(face)
             end
         end
+        face:_updateVisibility()
     end
 end
 
+return chyzlib
